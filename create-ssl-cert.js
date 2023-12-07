@@ -13,7 +13,8 @@ const { exec } = require("child_process");
 const path = require("path");
 require("dotenv").config({ path: path.resolve(__dirname, ".env") });
 
-const { hostnames = "localhost" } = process.env;
+const { hostnames = "localhost,aepdemo.com,local-target-test.com" } =
+  process.env;
 
 const cmd = [
   "mkcert -key-file key.pem -cert-file cert.pem",

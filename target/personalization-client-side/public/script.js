@@ -9,6 +9,11 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
+
+function randomId(name) {
+  return name + "-" + Math.floor(Math.random() * 10000000).toString(10);
+}
+
 function createIdentityPayload(
   id,
   authenticatedState = "ambiguous",
@@ -25,7 +30,33 @@ function createIdentityPayload(
   };
 }
 
-function sendDisplayEvent(decision) {
+function sendTargetDisplayEvent(mbox) {
+  if (!mbox.options) {
+    console.log(
+      `could not send display notification for ${mbox.name}.  missing options`
+    );
+    return;
+  }
+
+  const notifications = [
+    {
+      id: randomId("disp"),
+      type: "display",
+      timestamp: Date.now(),
+      parameters: mbox.parameters,
+      profileParameters: mbox.profileParameters,
+      order: mbox.order,
+      product: mbox.product,
+      mbox: { name: mbox.name, state: mbox.state },
+      tokens: mbox.options.map((e) => e.eventToken),
+    },
+  ];
+  adobe.target.sendNotifications({
+    request: { notifications },
+  });
+}
+
+function sendAlloyDisplayEvent(decision) {
   const { id, scope, scopeDetails = {} } = decision;
 
   alloy("sendEvent", {
@@ -57,33 +88,75 @@ function updateButtons(buttonActions) {
   });
 }
 
-function applyPersonalization(decisionScopeName) {
+function applyPersonalizationAtjs(decisionScopeNames) {
+  return function (result) {
+    const { execute, prefetch } = result;
+    const { mboxes = [] } = execute || prefetch;
+
+    decisionScopeNames.forEach((decisionScopeName) => {
+      const mbox = mboxes.find((mbox) => mbox.name === decisionScopeName);
+
+      if (mbox) {
+        const { options = [] } = mbox;
+
+        const { content = {} } = options.length > 0 ? options[0] : {};
+
+        if (prefetch) {
+          sendTargetDisplayEvent(mbox);
+        }
+
+        applyPersonalization(decisionScopeName, content);
+      }
+    });
+  };
+}
+
+function applyPersonalizationAlloy(decisionScopeNames) {
   return function (result) {
     const { propositions = [], decisions = [] } = result;
 
     // send display event for the decision scope / target mbox
-    decisions.forEach((decision) => sendDisplayEvent(decision));
+    decisions.forEach((decision) => sendAlloyDisplayEvent(decision));
 
-    const mbox = propositions.find(
-      (proposition) => proposition.scope === decisionScopeName
-    );
+    decisionScopeNames.forEach((decisionScopeName) => {
+      const mbox = propositions.find(
+        (proposition) => proposition.scope === decisionScopeName
+      );
 
-    if (mbox) {
-      const element = document.querySelector("img.target-offer");
+      if (mbox) {
+        const { items = [] } = mbox;
 
-      const {
-        buttonActions = [],
-        heroImageName = "demo-marketing-offer1-default.png",
-      } = mbox.items[0].data.content;
+        const { data = {} } = items.length > 0 ? items[0] : {};
+        const { content = {} } = data;
 
-      updateButtons(buttonActions);
-
-      element.src = `img/${heroImageName}`;
-    }
+        applyPersonalization(decisionScopeName, content);
+      }
+    });
   };
 }
 
+function applyPersonalization(decisionScopeName, content) {
+  if (decisionScopeName === "aguaOffer") {
+    const element = document.querySelector("img.target-offer");
+
+    const {
+      buttonActions = [],
+      heroImageName = "demo-marketing-offer1-default.png",
+    } = content;
+
+    updateButtons(buttonActions);
+
+    element.src = `img/${heroImageName}`;
+  }
+
+  if (decisionScopeName === "sample-favorite-color") {
+    const { backgroundColor = "white" } = content;
+    document.body.style.backgroundColor = backgroundColor;
+  }
+}
+
 function displayError(err) {
+  console.error(err);
   const containerElement = document.getElementById("main-container");
   if (!containerElement) {
     return;
@@ -94,3 +167,47 @@ function displayError(err) {
                                       <div class="alert alert-danger" role="alert">${err.message}</div>
                                     </div>`;
 }
+
+function changeRoute(viewName) {
+  window.location = "#" + viewName;
+
+  if (typeof adobe !== "undefined" && typeof adobe.target !== "undefined") {
+    adobe.target.triggerView(viewName);
+    return;
+  }
+
+  if (typeof alloy === "function") {
+    alloy("sendEvent", {
+      renderDecisions: true,
+      xdm: {
+        web: {
+          webPageDetails: {
+            viewName: viewName,
+          },
+        },
+      },
+    });
+  }
+}
+
+window.onload = function () {
+  if (window.location.hash) {
+    changeRoute(window.location.hash.replace("#", ""));
+  }
+
+  window.addEventListener(
+    "hashchange",
+    function (evt) {
+      // eslint-disable-next-line no-unused-vars
+      var newURL = evt.newURL || location.hash;
+
+      var parts = newURL.split("#");
+      var route = parts[1];
+      changeRoute(route);
+    },
+    false
+  );
+};
+
+var urlParams = new URLSearchParams(window.location.search);
+var favoriteColor = urlParams.get("favoriteColor");

@@ -17,30 +17,69 @@ require("dotenv").config({ path: path.resolve(process.cwd(), "..", ".env") });
 const {
   EDGE_CONFIG_ID_WITH_ANALYTICS,
   ORGANIZATION_ID,
+  CLIENT_CODE,
+  PROPERTY_ID,
+  SERVER_DOMAIN,
   FPID,
-  demoDecisionScopeName,
+  demoDecisionScopeNames,
 } = process.env;
 
-const template = fs.readFileSync(
-  path.resolve(path.join(__dirname, "index.handlebars")),
-  "utf-8"
-);
+const templates = [
+  {
+    name: "alloy",
+    filenames: ["alloy"],
+    template: fs.readFileSync(
+      path.resolve(path.join(__dirname, "alloy.handlebars")),
+      "utf-8"
+    ),
+    library: "https://cdn1.adoberesources.net/alloy/2.19.1/alloy.min.js",
+  },
+  {
+    name: "atjs",
+    filenames: ["atjs", "index"],
+    template: fs.readFileSync(
+      path.resolve(path.join(__dirname, "atjs.handlebars")),
+      "utf-8"
+    ),
+    library: "at.js",
+  },
+  {
+    name: "atjs-shim",
+    filenames: ["atjs-shim"],
+    template: fs.readFileSync(
+      path.resolve(path.join(__dirname, "atjs-shim.handlebars")),
+      "utf-8"
+    ),
+    library: "alloy.js",
+  },
+];
 
-const renderTemplate = Handlebars.compile(template);
+templates.forEach((templateDef) => {
+  const { name, filenames = [], template, library } = templateDef;
 
-const html = renderTemplate({
-  edgeConfigId: EDGE_CONFIG_ID_WITH_ANALYTICS,
-  orgId: ORGANIZATION_ID,
-  FPID,
-  demoDecisionScopeName,
+  const renderTemplate = Handlebars.compile(template);
+
+  const html = renderTemplate({
+    templateName: name,
+    edgeConfigId: EDGE_CONFIG_ID_WITH_ANALYTICS,
+    orgId: ORGANIZATION_ID,
+    clientCode: CLIENT_CODE,
+    serverDomain: SERVER_DOMAIN,
+    propertyId: PROPERTY_ID,
+    library,
+    FPID,
+    demoDecisionScopeNames: demoDecisionScopeNames,
+  });
+
+  // Write to build folder. Copy the built file and deploy
+  filenames.forEach((filename) => {
+    fs.writeFile(
+      path.join(__dirname, "..", "public", `${filename}.html`),
+      html,
+      (err) => {
+        if (err) console.log(err);
+        console.log("File written succesfully");
+      }
+    );
+  });
 });
-
-// Write to build folder. Copy the built file and deploy
-fs.writeFile(
-  path.join(__dirname, "..", "public", "index.html"),
-  html,
-  (err) => {
-    if (err) console.log(err);
-    console.log("File written succesfully");
-  }
-);

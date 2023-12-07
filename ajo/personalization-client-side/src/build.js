@@ -22,7 +22,7 @@ const {
 } = process.env;
 
 const template = fs.readFileSync(
-  path.resolve(path.join(__dirname, "index.handlebars")),
+  path.resolve(path.join(__dirname, "alloy.handlebars")),
   "utf-8"
 );
 

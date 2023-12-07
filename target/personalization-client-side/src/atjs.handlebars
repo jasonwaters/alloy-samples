@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Target client-side sample</title>
+  <title>[{{templateName}}] Target client-side sample</title>
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <link rel="icon" href="https://wwwimages2.adobe.com/favicon.ico" type="image/x-icon">
   <link rel="stylesheet" href="style.css">
@@ -10,49 +10,76 @@
   <script src="https://code.jquery.com/jquery-3.6.0.slim.min.js" integrity="sha256-u7e5khyithlIdTpu22PHhENmPcRdFiHRjhAuHcs05RI=" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@3.4.1/dist/js/bootstrap.min.js" integrity="sha384-aJ21OjlMXNL5UyIl/XNwTMqvzeRMZH2w8c5cRVpzpU8Y5bApTppSuUkhZXN0VxHd" crossorigin="anonymous"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="VisitorAPI.js"></script>
   <script src="script.js"></script>
   <script>
-    // https://experienceleague.adobe.com/docs/experience-platform/edge/personalization/manage-flicker.html?lang=en
-    !function(e,a,n,t){
-      if (a) return;
-      var i=e.head;if(i){
-        var o=e.createElement("style");
-        o.id="alloy-prehiding",o.innerText=n,i.appendChild(o),
-          setTimeout(function(){o.parentNode&&o.parentNode.removeChild(o)},t)}}
-    (document, document.location.href.indexOf("adobe_authoring_enabled") !== -1, "body { opacity: 0 !important }", 3000);
+    // flicker management
+    ;(function(win, doc, style, timeout) {
+      var STYLE_ID = 'at-body-style';
 
-
-    !function(n,o){o.forEach(function(o){n[o]||((n.__alloyNS=n.__alloyNS||
-      []).push(o),n[o]=function(){var u=arguments;return new Promise(
-      function(i,l){n[o].q.push([i,l,u])})},n[o].q=[])})}
-    (window,["alloy"]);
-
-    alloy("configure", {
-      "edgeConfigId": "{{edgeConfigId}}",
-      "orgId":"{{orgId}}",
-      "context": ["web"],
-      "debugEnabled": false
-    });
-
-  </script>
-  <script src="https://cdn1.adoberesources.net/alloy/2.18.0/alloy.min.js" async></script>
-
-  <script>
-    const demoDecisionScopeName = "{{demoDecisionScopeName}}"; // also known as a target mbox
-    const FPID = createIdentityPayload("{{FPID}}");
-
-    alloy("sendEvent",
-      {
-        "renderDecisions": true,
-        decisionScopes: [demoDecisionScopeName],
-        "xdm": FPID ? {
-          identityMap: {
-            "FPID": [FPID]
-          }
-        } : {}
+      function getParent() {
+        return doc.getElementsByTagName('head')[0];
       }
-    ).then(applyPersonalization(demoDecisionScopeName)).catch(displayError);
+
+      function addStyle(parent, id, def) {
+        if (!parent) {
+          return;
+        }
+
+        var style = doc.createElement('style');
+        style.id = id;
+        style.innerHTML = def;
+        parent.appendChild(style);
+      }
+
+      function removeStyle(parent, id) {
+        if (!parent) {
+          return;
+        }
+
+        var style = doc.getElementById(id);
+
+        if (!style) {
+          return;
+        }
+
+        parent.removeChild(style);
+      }
+
+      addStyle(getParent(), STYLE_ID, style);
+      setTimeout(function() {
+        removeStyle(getParent(), STYLE_ID);
+      }, timeout);
+    }(window, document, "body {opacity: 0 !important}", 3000));
+
+    ///
+
+    window.targetGlobalSettings = {
+      overrideMboxEdgeServer: true,
+      serverDomain: "{{serverDomain}}",
+      clientCode: "{{clientCode}}",
+      imsOrgId: "{{orgId}}",
+      pageLoadEnabled: true,
+      viewsEnabled: true,
+      telemetryEnabled: false,
+      decisioningMethod: "server-side",
+    };
+
+    window.targetPageParamsAll = window.targetPageParams = function() {
+      const result = {
+        at_property: "{{propertyId}}"
+      };
+
+      if(favoriteColor) {
+        result["profile"] = {
+          "favoriteColor": favoriteColor
+        }
+      }
+
+      return result;
+    };
   </script>
+  <script type="text/javascript" src="{{library}}"></script>
 </head>
 <body>
 <nav class="navbar navbar-inverse navbar-fixed-top">
@@ -101,6 +128,37 @@
     <button id="action-button-2" data-id="2" type="button" class="btn btn-success">Two</button>
     <button id="action-button-3" data-id="3" type="button" class="btn btn-info">Three</button>
   </div>
+  <ul id="spa-links">
+    <li>
+      <a id="action-button-4" href="#contact">view change: contact</a>
+    </li>
+    <li>
+      <a id="action-button-5" href="#about">view change: about</a>
+    </li>
+  </ul>
 </div>
+<script src="AppMeasurement.js"></script>
+<script>
+  setTimeout(function() {
+    var s_code=s.t();if(s_code)document.write(s_code);
+  }, 1000);
+  const FPID = undefined; //createIdentityPayload("{{FPID}}");
+  const demoDecisionScopeNames = "{{demoDecisionScopeNames}}".split(','); // also known as a target mbox
+
+  adobe.target.getOffers({
+    request: {
+      execute: {
+        mboxes:
+          demoDecisionScopeNames.map((demoDecisionScopeName,idx) => {
+            return {
+              name: demoDecisionScopeName,
+              index: idx
+            }
+          })
+      }
+    },
+    consumerId: randomId("getoffers")
+  }).then(applyPersonalizationAtjs(demoDecisionScopeNames)).catch(displayError)
+</script>
 </body>
 </html>
