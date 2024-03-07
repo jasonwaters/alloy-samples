@@ -25,9 +25,8 @@ function createIdentityPayload(
   };
 }
 
-function sendDisplayEvent(proposition) {
+function sendDisplayEvent(proposition, itemIds = [], tokens = []) {
   const { id, scope, scopeDetails = {} } = proposition;
-
   alloy("sendEvent", {
     xdm: {
       eventType: "decisioning.propositionDisplay",
@@ -38,10 +37,14 @@ function sendDisplayEvent(proposition) {
               id: id,
               scope: scope,
               scopeDetails: scopeDetails,
+              items: Array.from(new Set(itemIds)).map((id) => ({ id })),
             },
           ],
           propositionEventType: {
-            display: 1
+            display: 1,
+          },
+          propositionAction: {
+            tokens: Array.from(new Set(tokens)),
           },
         },
       },
@@ -49,7 +52,12 @@ function sendDisplayEvent(proposition) {
   });
 }
 
-function sendInteractEvent(label, proposition) {
+function sendInteractEvent(
+  proposition,
+  label = undefined,
+  token = undefined,
+  itemIds = []
+) {
   const { id, scope, scopeDetails = {} } = proposition;
 
   alloy("sendEvent", {
@@ -62,13 +70,15 @@ function sendInteractEvent(label, proposition) {
               id: id,
               scope: scope,
               scopeDetails: scopeDetails,
+              items: Array.from(new Set(itemIds)).map((id) => ({ id })),
             },
           ],
           propositionEventType: {
-            interact: 1
+            interact: 1,
           },
           propositionAction: {
-            label: label
+            label: label,
+            tokens: [token],
           },
         },
       },
@@ -76,44 +86,124 @@ function sendInteractEvent(label, proposition) {
   });
 }
 
-function updateButtons(buttonActions, proposition) {
-  buttonActions.forEach((buttonAction) => {
-    const { id, text, content } = buttonAction;
+function renderMoviesMenu(proposition) {
+  if (!proposition) {
+    return;
+  }
 
-    const element = document.getElementById(`action-button-${id}`);
-    element.innerText = text;
+  const { items: propositionItems = [] } = proposition;
 
-    element.addEventListener("click", () => sendInteractEvent(text, proposition));
-  });
+  const menuItems = propositionItems.reduce(
+    (menuItems, propositionItem) => [
+      ...menuItems,
+      ...propositionItem.data.content.items.map((item) => {
+        const img = /.+\/(\w+)\.jpg/.exec(item.img || "");
+        const icon = img && img.length > 0 ? `/img/${img[1]}-icon.webp` : "";
+        return { ...item, icon, id: propositionItem.id, proposition };
+      }),
+    ],
+    []
+  );
+
+  const dropdown = document.querySelector("#movies-dropdown");
+  if (!dropdown) {
+    return;
+  }
+
+  const template = Handlebars.compile(`
+  <ul class="dropdown-menu">
+    {{#each menuItems}}
+      <li title="{{description}}"  data-item-index="{{@index}}">
+        <a href="#movie-{{title}}"><img src="{{icon}}" width="60" height="60" /> {{title}}</a>
+      </li>
+   {{/each}}
+  </ul>
+`);
+
+  const renderMenuItems = () => {
+    dropdown.insertAdjacentHTML("beforeend", template({ menuItems }));
+
+    const dropdownLinks = document.querySelectorAll(
+      "#movies-dropdown > ul.dropdown-menu a"
+    );
+
+    dropdownLinks.forEach((link) => {
+      link.addEventListener("click", (evt) => {
+        const li = evt.target.closest("li");
+        if (!li) {
+          return;
+        }
+        const idx = parseInt(li.getAttribute("data-item-index"), 10);
+
+        const {
+          proposition,
+          clickLabel,
+          clickToken,
+          id: itemId,
+        } = menuItems[idx];
+        sendInteractEvent(proposition, clickLabel, clickToken, [itemId]);
+      });
+    });
+
+    sendDisplayEvent(
+      proposition,
+      menuItems.map((item) => item.id),
+      menuItems.map((item) => item.clickToken)
+    );
+    dropdown.removeEventListener("click", renderMenuItems);
+  };
+
+  dropdown.addEventListener("click", renderMenuItems);
 }
 
 function applyPersonalization(surfaceName) {
+  const metadata = {
+    [`web://${window.location.hostname}/#hello`]: {
+      selector: "div.page-header",
+      actionType: "insertAfter",
+    },
+    [`web://${window.location.hostname}/#movies`]: {
+      selector: "p#paragraph-text-2",
+      actionType: "insertAfter",
+    },
+    [`web://aepdemo.com/#movies`]: {
+      selector: "p#paragraph-text-2",
+      actionType: "insertAfter",
+    },
+  };
+
   return function (result) {
-    const { propositions = []} = result;
+    const { propositions = [] } = result;
 
-    const proposition = propositions.filter((p) =>
-      p.scope.endsWith(surfaceName)
-    )[0];
-
-    if (proposition) {
-      // send display event for the surface
-      sendDisplayEvent(proposition)
-
-      const element = document.querySelector("img.ajo-decision");
-
-      const {
-        buttonActions = [],
-        heroImageName = "demo-marketing-decision1-default.png",
-      } = proposition.items[0].data.content;
-
-      updateButtons(buttonActions, proposition);
-
-      element.src = `img/${heroImageName}`;
+    if (propositions.length === 0) {
+      return;
     }
+
+    if (surfaceName === "web://aepdemo.com/#movies-menu") {
+      renderMoviesMenu(
+        propositions.find((proposition) => proposition.scope === surfaceName)
+      );
+      return;
+    }
+
+    if (!metadata[surfaceName]) {
+      return;
+    }
+
+    alloy("applyPropositions", {
+      propositions: propositions.filter((p) => {
+        const { scope } = p;
+        return scope.endsWith(surfaceName);
+      }),
+      metadata: {
+        [surfaceName]: metadata[surfaceName],
+      },
+    });
   };
 }
 
 function displayError(err) {
+  console.error(err);
   const containerElement = document.getElementById("main-container");
   if (!containerElement) {
     return;

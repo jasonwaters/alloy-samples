@@ -13,12 +13,15 @@ const fs = require("fs");
 const path = require("path");
 const Handlebars = require("handlebars");
 
-require("dotenv").config({ path: path.resolve(process.cwd(), "..", ".env") });
+require("dotenv").config({
+  path: path.resolve(process.cwd(), "..", ".env_stage"),
+});
 const {
   AEP_EDGE_DOMAIN,
   EDGE_CONFIG_ID_WITH_ANALYTICS,
   ORGANIZATION_ID,
   demoSurfaceName,
+  demoSurfaceUri,
 } = process.env;
 
 const template = fs.readFileSync(
@@ -33,6 +36,7 @@ const html = renderTemplate({
   edgeConfigId: EDGE_CONFIG_ID_WITH_ANALYTICS,
   orgId: ORGANIZATION_ID,
   demoSurfaceName,
+  demoSurfaceUri,
 });
 
 // Write to build folder. Copy the built file and deploy
