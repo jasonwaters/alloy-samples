@@ -14,7 +14,7 @@ const path = require("path");
 const Handlebars = require("handlebars");
 
 require("dotenv").config({
-  path: path.resolve(process.cwd(), "..", ".env_stage"),
+  path: path.resolve(process.cwd(), "..", ".env"),
 });
 const {
   AEP_EDGE_DOMAIN,
