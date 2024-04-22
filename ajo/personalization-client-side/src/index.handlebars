@@ -26,7 +26,14 @@
       orgId:"{{orgId}}",
       debugEnabled: false,
       thirdPartyCookiesEnabled: false,
-      clickCollectionEnabled: false,
+      clickCollectionEnabled: true,
+      clickCollection: {
+        internalLinkEnabled: true,
+        downloadLinkEnabled: true,
+        externalLinkEnabled: true,
+        sessionStorageEnabled: true,
+        eventGroupingEnabled: true
+      },
       prehidingStyle: "body { opacity: 0 !important }"
     });
 
@@ -72,13 +79,13 @@
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
       </button>
-      <a class="navbar-brand" href="#">Web Site</a>
+      <a class="navbar-brand" href="/">Web Site</a>
     </div>
     <div id="navbar" class="collapse navbar-collapse">
       <ul class="nav navbar-nav">
-        <li class="active"><a href="#">Home</a></li>
-        <li><a href="#">About</a></li>
-        <li><a href="#">Contact</a></li>
+        <li class="active"><a href="/">Home</a></li>
+        <li><a href="#about">About</a></li>
+        <li><a href="#contact">Contact</a></li>
         <li class="dropdown" id="movies-dropdown">
           <a
             href="#"
